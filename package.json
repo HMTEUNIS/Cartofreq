@@ -32,6 +32,7 @@
   "build": {
     "appId": "dev.cartofreq.midi",
     "productName": "Cartofreq MIDI",
+    "npmRebuild": false,
     "directories": {
       "output": "release"
     },
