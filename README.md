@@ -1,5 +1,7 @@
 # Cartofreq
 
+![cartofreq](build/cartofreq.png)
+
 Cartofreq is a microtonal sequencer in a three-dimensional space. Time runs left to right, pitch runs bottom to top, and brightness runs front to back. A phrase is four bars of 4/4, and it loops. Pitch is free between A1 (55 Hz) and A6 (1760 Hz). The readout names the nearest twelve-tone pitch, the cents offset, the bar, the beat, and the brightness.
 
 There are two ways to use it:
@@ -91,7 +93,15 @@ Hearing Cartofreq on your speakers needs no extra driver. The app plays through 
 
 A DAW is different. Cartofreq does not switch its own output, and it does not select the DAW's input. The virtual cable shows up as an ordinary sound device. You choose it in two menus: one so Cartofreq plays into the cable, and one so the DAW listens to that cable. Set the desktop output mode to **Audio Out** or **Both** before you do this.
 
-**Linux.** On launch the app creates a PulseAudio or PipeWire sink, `CartofreqOut`, and a source, `CartofreqIn`, that listens to it. The system default device is left alone. In the system sound settings, set Cartofreq's playback device to `CartofreqOut`. In the DAW, choose `CartofreqIn` as the input. If this process created those devices, they are removed when the app quits. They only appear when PipeWire or PulseAudio is installed and `pactl` is available.
+**Linux.** On launch the app creates a PulseAudio or PipeWire sink, `CartofreqOut`, and a source, `CartofreqIn`, that listens to it. The system default device is left alone. In the system sound settings, set Cartofreq's playback device to `CartofreqOut`. In the DAW, choose `CartofreqIn` as the input. If this process created those devices, they are removed when the app quits.
+
+Those devices are created with `pactl`. PipeWire can already be running while `pactl` is still missing. The app then reports that audio out is unavailable and ends with `spawnSync pactl ENOENT`. That line is only the DAW cable. The speakers still play through the system output. Install the missing command and open the app again:
+
+```
+sudo apt install pulseaudio-utils
+```
+
+The desktop app is also silent until a sample is loaded. It does not play the web demo's oscillator. Use Load sample, set the base frequency to the pitch of that recording, then press Play.
 
 **macOS, with BlackHole.** Install [BlackHole 2ch](https://existential.audio/blackhole/). Open the package and follow the installer. If macOS blocks the driver, allow it under System Settings → Privacy & Security, then restart if it asks.
 
@@ -171,7 +181,31 @@ npm run dist:mac     # dmg
 npm run dist:win     # nsis
 ```
 
-They are written to `release/`. The packaged product name is Cartofreq MIDI.
+They are written to `release/`. Each one is named `cartofreq`: `cartofreq.AppImage`, `cartofreq.dmg`, and `cartofreq.exe`. The installed program is `cartofreq` as well. The window title is Cartofreq. The picture at the top of this file is the app icon.
+
+**Linux.** The file to open is `release/cartofreq.AppImage`.
+
+A double-click of a build from before this fix exits immediately. Electron finds `chrome-sandbox` inside the package, that helper is not setuid root, and the process aborts before a window exists. The file manager does not show the error. Current packages start with `--no-sandbox`, so opening the AppImage or `release/linux-unpacked/cartofreq` reaches the window.
+
+The AppImage also needs FUSE 2 (`libfuse.so.2`). Ubuntu 24.04 ships FUSE 3 without it. Without the library the file exits the same way, before a window. On Ubuntu 24.04 and later:
+
+```
+sudo apt install libfuse2t64
+```
+
+On Ubuntu 22.04 the package is `libfuse2`.
+
+`npm run dist:linux` also writes an unpacked app that does not need FUSE:
+
+```
+./release/linux-unpacked/cartofreq
+```
+
+If you only have an AppImage and cannot install FUSE, this starts that file. The filename includes the version.
+
+```
+APPIMAGE_EXTRACT_AND_RUN=1 ./release/cartofreq.AppImage
+```
 
 ---
 
@@ -182,6 +216,6 @@ They are written to `release/`. The packaged product name is Cartofreq MIDI.
 - One sample is loaded at a time.
 - A bend that runs past a clip, with Loop sample off, ends when the clip ends.
 - The sampler keeps 8 voices. The oscillator keeps 16. Each sampler voice is an AudioWorklet.
-- Linux routing needs PulseAudio or PipeWire, and `pactl` has to be on the path the app can see.
+- Linux DAW routing needs `pactl`, from the `pulseaudio-utils` package, and PipeWire or PulseAudio running. Without `pactl` the speakers still play, and CartofreqOut and CartofreqIn are not created.
 - The macOS and Windows virtual-audio drivers are not bundled.
 - Windows virtual MIDI needs loopMIDI.

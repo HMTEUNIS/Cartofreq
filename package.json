@@ -30,8 +30,12 @@
     "vite": "^7.0.0"
   },
   "build": {
-    "appId": "dev.cartofreq.midi",
-    "productName": "Cartofreq MIDI",
+    "appId": "dev.cartofreq",
+    "productName": "Cartofreq",
+    "executableName": "cartofreq",
+    "artifactName": "cartofreq.${ext}",
+    "icon": "build/icon.png",
+    "extraResources": [{ "from": "build/icon.png", "to": "icon.png" }],
     "npmRebuild": false,
     "directories": {
       "output": "release"
@@ -50,6 +54,7 @@
     },
     "linux": {
       "target": "AppImage"
-    }
+    },
+    "afterPack": "scripts/linux-no-sandbox.cjs"
   }
 }

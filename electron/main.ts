@@ -287,12 +287,15 @@ function setupVirtualAudio(): void {
     }
     console.log('[Audio] Virtual devices ready')
   } catch (error) {
+    const missing = typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
     const detail = error instanceof Error ? error.message : String(error)
     audioState = {
       ok: false,
       sink: 'CartofreqOut',
       source: 'CartofreqIn',
-      detail: `PulseAudio or PipeWire is required. ${detail}`,
+      detail: missing
+        ? 'Speakers still play. CartofreqOut and CartofreqIn were not created because pactl is missing. Install pulseaudio-utils, then open the app again.'
+        : `Speakers still play. The DAW cable was not created. PulseAudio or PipeWire is required. ${detail}`,
     }
     console.error('[Audio] Virtual device setup failed:', error)
   }
@@ -317,11 +320,18 @@ function cleanupVirtualAudio(): void {
   }
 }
 
+function windowIcon(): string {
+  const packaged = path.join(process.resourcesPath, 'icon.png')
+  const dev = path.join(__dirname, '../../build/icon.png')
+  return app.isPackaged ? packaged : dev
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1400,
     height: 900,
     title: 'Cartofreq',
+    icon: windowIcon(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,

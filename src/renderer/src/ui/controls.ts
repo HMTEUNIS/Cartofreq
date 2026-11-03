@@ -526,6 +526,7 @@ export function createControls(options: ControlOptions): ControlHandles {
       : `MIDI out unavailable. ${midiOut.error ?? 'The virtual port did not open.'}`
     renderMidiOut()
     if (engine.workletError) setStatus(`Sampler unavailable. ${engine.workletError}`)
+    else if (desktop && !engine.hasSample()) setStatus('Load a sample to hear the score. The desktop app plays that recording, not an oscillator.')
   }
 
   async function refreshInputs(): Promise<void> {
@@ -550,7 +551,7 @@ export function createControls(options: ControlOptions): ControlHandles {
     audioOutHint.hidden = false
     audioOutHint.textContent = audioOut.ok
       ? `Audio out: ${audioOut.sink} → ${audioOut.source}. ${audioOut.detail}`
-      : `Audio out unavailable. ${audioOut.detail}`
+      : audioOut.detail
   }
 
   store.subscribe(renderMeta)
