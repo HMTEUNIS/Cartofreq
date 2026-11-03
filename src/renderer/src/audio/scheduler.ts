@@ -7,11 +7,10 @@ import {
 import type { Store } from '../model/store'
 import type { NotePoint } from '../model/types'
 import type { AudioEngine } from './synth'
+import { SCHEDULE_AHEAD_S } from './transport'
 
 /** How often the scheduler wakes. This is not the audio clock. */
 const LOOKAHEAD_MS = 25
-/** How far ahead events are written onto the AudioContext timeline. */
-export const SCHEDULE_AHEAD_S = 0.1
 const WINDOW_S = 0.025
 
 interface Flash {
@@ -89,6 +88,11 @@ export class Scheduler {
     this.skipUntil.clear()
     this.flashes = []
     this.audio.silence()
+  }
+
+  seek(norm: number): void {
+    if (this.playing) return
+    this.pausedAt = norm < 0 ? 0 : norm > 1 ? 1 : norm
   }
 
   toggle(): void {
@@ -192,6 +196,14 @@ export class Scheduler {
   }
 
   private fire(point: NotePoint, time: number): void {
+    try {
+      this.dispatch(point, time)
+    } catch (error) {
+      console.warn(error)
+    }
+  }
+
+  private dispatch(point: NotePoint, time: number): void {
     const outgoing = this.store.outgoing(point.id)
     if (outgoing.length > 0) {
       for (const bend of outgoing) {
@@ -199,7 +211,13 @@ export class Scheduler {
         if (!target) continue
         // forwardDelta inside glideSeconds wraps when the target is earlier in the loop.
         const seconds = glideSeconds(point.x, target.x, this.store.bpm)
-        this.audio.triggerBend(point, target, bend.curveType, time, seconds)
+        // A node dropped onto a slide is the end of one leg and the start of the next.
+        // Sampler mode keeps that clip playing. The head of the slide still starts it.
+        if (this.isBendTarget(point.id)) {
+          this.audio.continueBend(point, target, bend.curveType, time, seconds)
+        } else {
+          this.audio.triggerBend(point, target, bend.curveType, time, seconds)
+        }
       }
     } else if (!this.isBendTarget(point.id)) {
       this.audio.triggerHit(point, time)

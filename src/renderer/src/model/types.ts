@@ -1,5 +1,21 @@
 export type CurveType = 'linear' | 'exponential'
 
+/** Web can switch. The desktop build is sampler only. */
+export type SoundMode = 'oscillator' | 'sampler'
+
+/** Desktop output. Web always plays through the browser. */
+export type OutputRoute = 'audio' | 'midi' | 'both'
+
+/** Reject longer clips so a handful of voices stay predictable. */
+export const SAMPLE_MAX_SECONDS = 10
+
+/** Short clips loop so a bend can outlast the recording. */
+export const SAMPLE_LOOP_UNDER_SECONDS = 5
+
+export const DEFAULT_SAMPLE_BASE_HZ = 440
+export const SAMPLE_BASE_MIN = 20
+export const SAMPLE_BASE_MAX = 5000
+
 /**
  * Onset strength, separate from `z`.
  * 0 is a smooth fade into the hold; 1 is a clear attack.

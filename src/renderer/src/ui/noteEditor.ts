@@ -1,4 +1,4 @@
-import { zToCutoff, zToQ } from '../audio/voice'
+import { zToCutoff, zToQ } from '../audio/brightness'
 import { describePitch, describeTime, FREQ_MAX, FREQ_MIN, formatHz } from '../model/space'
 import type { Store } from '../model/store'
 import type { CurveType } from '../model/types'
@@ -23,6 +23,7 @@ export function createNoteEditor(store: Store): NoteEditor {
     </header>
     <div class="stack">
       <p class="readout" data-meta></p>
+      <p class="readout" data-ratio hidden></p>
       <label>Frequency
         <input data-freq type="number" min="${FREQ_MIN}" max="${FREQ_MAX}" step="0.01" />
       </label>
@@ -35,7 +36,7 @@ export function createNoteEditor(store: Store): NoteEditor {
         <input data-velocity type="range" min="0" max="1" step="0.01" />
         <span class="velocity-caption"><span>smooth</span><span>hit</span></span>
       </label>
-      <label>Wave
+      <label data-wave-field>Wave
         <select data-wave>
           ${WAVES.map((wave) => `<option value="${wave}">${wave}</option>`).join('')}
         </select>
@@ -48,11 +49,13 @@ export function createNoteEditor(store: Store): NoteEditor {
 
   const title = root.querySelector<HTMLElement>('[data-title]')!
   const meta = root.querySelector<HTMLElement>('[data-meta]')!
+  const ratio = root.querySelector<HTMLElement>('[data-ratio]')!
   const freq = root.querySelector<HTMLInputElement>('[data-freq]')!
   const gain = root.querySelector<HTMLInputElement>('[data-gain]')!
   const velocity = root.querySelector<HTMLInputElement>('[data-velocity]')!
   const cutoff = root.querySelector<HTMLElement>('[data-cutoff]')!
   const q = root.querySelector<HTMLElement>('[data-q]')!
+  const waveField = root.querySelector<HTMLElement>('[data-wave-field]')!
   const wave = root.querySelector<HTMLSelectElement>('[data-wave]')!
   const bends = root.querySelector<HTMLElement>('[data-bends]')!
   let currentId: string | null = null
@@ -71,7 +74,14 @@ export function createNoteEditor(store: Store): NoteEditor {
     if (document.activeElement !== velocity) velocity.value = String(current.velocity)
     cutoff.textContent = `Cutoff: ${zToCutoff(current.z).toFixed(0)} Hz`
     q.textContent = `Q: ${zToQ(current.z).toFixed(2)}`
-    if (document.activeElement !== wave) wave.value = current.waveType
+    const sampler = store.soundMode === 'sampler'
+    waveField.hidden = sampler
+    ratio.hidden = !sampler
+    if (sampler) {
+      const base = store.sampleBaseHz > 0 ? store.sampleBaseHz : 440
+      ratio.textContent = `Pitch ×${(current.y / base).toFixed(3)}`
+    }
+    if (!sampler && document.activeElement !== wave) wave.value = current.waveType
     const signature = store.outgoing(currentId).map((bend) => `${bend.id}:${bend.curveType}`).join('|')
     if (signature !== bendSignature) {
       bendSignature = signature
@@ -133,8 +143,8 @@ export function createNoteEditor(store: Store): NoteEditor {
     if (!currentId) return
     store.updatePoint(currentId, { velocity: Number(velocity.value) })
   })
-  wave.addEventListener('change', () => {
-    if (!currentId) return
+  wave?.addEventListener('change', () => {
+    if (!currentId || !wave) return
     store.updatePoint(currentId, { waveType: wave.value as OscillatorType })
   })
 

@@ -1,5 +1,5 @@
-import { SCHEDULE_AHEAD_S, type Scheduler } from '../audio/scheduler'
-import type { AudioEngine } from '../audio/synth'
+import type { GestureOutput } from '../audio/gesture'
+import { SCHEDULE_AHEAD_S, type Transport } from '../audio/transport'
 import { FREQ_MAX, FREQ_MIN, PLANE_Z_NORM, forwardDelta, totalDuration } from '../model/space'
 import type { Store } from '../model/store'
 import { DEFAULT_VELOCITY } from '../model/types'
@@ -41,9 +41,11 @@ const RELEASE_BEFORE_REPLAY_S = SCHEDULE_AHEAD_S + 0.18
 
 interface Gesture {
   keys: Set<string>
+  tailKey: string
   tailId: string
   tailX: number
   tailFreq: number
+  z: number
   startX: number
   /** True once this pass is on the way back to the first point. */
   primed: boolean
@@ -57,6 +59,14 @@ export interface KeyboardPiano {
   /** Consumes note and octave keys. False lets the event through. */
   keyDown(event: KeyboardEvent): boolean
   keyUp(event: KeyboardEvent): void
+  /** Note-on from the computer keyboard or a MIDI input. `id` distinguishes held notes. */
+  press(id: string, freq: number): void
+  /** Note-off. The last release finishes the gesture. */
+  release(id: string): void
+  /** Pitch-bend the live tail when `id` is that tail. */
+  retune(id: string, freq: number): void
+  /** Brightness for the live tail. CC74. */
+  brighten(id: string, z: number): void
   /** Release the live voice before the recorded phrase reaches the playhead again. */
   tick(): void
   /** Keep the hold as a bend, then release the live voice. */
@@ -93,8 +103,8 @@ function octaveLimits(): { min: number; max: number } {
 
 export function createKeyboardPiano(options: {
   store: Store
-  audio: AudioEngine
-  scheduler: Scheduler
+  audio: GestureOutput
+  scheduler: Transport
 }): KeyboardPiano {
   const { store, audio, scheduler } = options
   const limits = octaveLimits()
@@ -116,14 +126,14 @@ export function createKeyboardPiano(options: {
     return freq
   }
 
-  function place(freq: number, fromId: string | null): { id: string; x: number } {
+  function place(freq: number, fromId: string | null, z = PLANE_Z_NORM): { id: string; x: number } {
     let id = ''
     const x = scheduler.playhead()
     store.batch(() => {
       id = store.addPoint({
         x,
         y: freq,
-        z: PLANE_Z_NORM,
+        z,
         velocity: DEFAULT_VELOCITY,
         waveType: store.waveType,
       })
@@ -133,27 +143,30 @@ export function createKeyboardPiano(options: {
     return { id, x: store.points.get(id)?.x ?? x }
   }
 
-  function begin(code: string, freq: number): void {
+  function begin(id: string, freq: number): void {
     audio.beginGesture(freq, PLANE_Z_NORM, DEFAULT_VELOCITY)
     const placed = place(freq, null)
     gesture = {
-      keys: new Set([code]),
+      keys: new Set([id]),
+      tailKey: id,
       tailId: placed.id,
       tailX: placed.x,
       tailFreq: freq,
+      z: PLANE_Z_NORM,
       startX: placed.x,
       primed: false,
     }
   }
 
-  function extend(code: string, freq: number): void {
+  function extend(id: string, freq: number): void {
     const current = gesture
     if (!current) return
-    current.keys.add(code)
+    current.keys.add(id)
+    current.tailKey = id
     if (audio.gestureLive()) audio.glideGesture(freq, store.bendCurve)
     else audio.beginGesture(freq, PLANE_Z_NORM, DEFAULT_VELOCITY)
     const fromId = store.points.has(current.tailId) ? current.tailId : null
-    const placed = place(freq, fromId)
+    const placed = place(freq, fromId, current.z)
     current.tailId = placed.id
     current.tailX = placed.x
     current.tailFreq = freq
@@ -169,7 +182,7 @@ export function createKeyboardPiano(options: {
     if (!current) return
     const head = scheduler.playhead()
     if (store.points.has(current.tailId) && heldLong(current.tailX, head)) {
-      place(current.tailFreq, current.tailId)
+      place(current.tailFreq, current.tailId, current.z)
     }
     audio.releaseGesture()
   }
@@ -208,7 +221,6 @@ export function createKeyboardPiano(options: {
     if (!arming) {
       arming = (async () => {
         await audio.ensureRunning()
-        if (!enabled) return
         if (!scheduler.isPlaying) await scheduler.play()
       })().finally(() => {
         arming = null
@@ -217,26 +229,60 @@ export function createKeyboardPiano(options: {
     return arming
   }
 
-  async function pressNote(code: string, freq: number): Promise<void> {
+  function inRange(freq: number): boolean {
+    return freq >= FREQ_MIN - 0.05 && freq <= FREQ_MAX + 0.05
+  }
+
+  async function pressNote(id: string, freq: number, requireEnabled: boolean): Promise<void> {
     if (!(scheduler.isPlaying && audio.context.state === 'running')) {
       try {
         await armTransport()
       } catch (error) {
         console.warn(error)
-        down.delete(code)
+        down.delete(id)
         return
       }
-      if (!enabled) return
-      if (!down.has(code)) {
+      if (requireEnabled && !enabled) return
+      if (!down.has(id)) {
         if (gesture) return
-        begin(code, freq)
+        begin(id, freq)
         finish()
         return
       }
     }
-    if (!enabled || !down.has(code)) return
-    if (gesture) extend(code, freq)
-    else begin(code, freq)
+    if ((requireEnabled && !enabled) || !down.has(id)) return
+    if (gesture) extend(id, freq)
+    else begin(id, freq)
+  }
+
+  function press(id: string, freq: number): void {
+    if (!inRange(freq) || down.has(id)) return
+    down.add(id)
+    void pressNote(id, freq, false)
+  }
+
+  function release(id: string): void {
+    down.delete(id)
+    const current = gesture
+    if (!current?.keys.has(id)) return
+    current.keys.delete(id)
+    if (current.keys.size === 0) finish()
+  }
+
+  function retune(id: string, freq: number): void {
+    const current = gesture
+    if (!current || current.tailKey !== id || !inRange(freq)) return
+    current.tailFreq = freq
+    if (audio.gestureLive()) audio.glideGesture(freq, store.bendCurve)
+  }
+
+  function brighten(id: string, z: number): void {
+    const current = gesture
+    if (!current || current.tailKey !== id) return
+    const next = Math.min(1, Math.max(0, z))
+    current.z = next
+    if (store.points.has(current.tailId)) store.updatePoint(current.tailId, { z: next })
+    audio.setGestureBrightness?.(next)
   }
 
   function keyDown(event: KeyboardEvent): boolean {
@@ -252,17 +298,12 @@ export function createKeyboardPiano(options: {
     if (freq === null) return true
     if (down.has(code)) return true
     down.add(code)
-    void pressNote(code, freq)
+    void pressNote(code, freq, true)
     return true
   }
 
   function keyUp(event: KeyboardEvent): void {
-    const code = event.code
-    down.delete(code)
-    const current = gesture
-    if (!current?.keys.has(code)) return
-    current.keys.delete(code)
-    if (current.keys.size === 0) finish()
+    release(event.code)
   }
 
   const dropHeld = (): void => {
@@ -285,12 +326,17 @@ export function createKeyboardPiano(options: {
       if (enabled === on) return
       enabled = on
       if (!on) {
-        down.clear()
-        finish()
+        for (const id of [...down]) {
+          if (id.startsWith('Key')) release(id)
+        }
       }
     },
     keyDown,
     keyUp,
+    press,
+    release,
+    retune,
+    brighten,
     tick,
     finish,
     cancel,

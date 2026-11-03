@@ -1,5 +1,16 @@
-import { FREQ_MAX, FREQ_MIN, PLANE_Z_NORM, clamp, BPM_MIN, BPM_MAX } from './space'
-import { DEFAULT_VELOCITY, type BendConnection, type CurveType, type NotePoint } from './types'
+import { clipColumn, columnOf, columnStart, type ColumnClip, type PasteMode } from './column'
+import { FREQ_MAX, FREQ_MIN, PLANE_Z_NORM, clamp, BPM_MIN, BPM_MAX, quantizeToQuarterBeat } from './space'
+import {
+  DEFAULT_SAMPLE_BASE_HZ,
+  DEFAULT_VELOCITY,
+  SAMPLE_BASE_MAX,
+  SAMPLE_BASE_MIN,
+  type BendConnection,
+  type CurveType,
+  type NotePoint,
+  type OutputRoute,
+  type SoundMode,
+} from './types'
 
 type PointInput = Omit<NotePoint, 'id' | 'velocity'> & { velocity?: number }
 type PointDraft = PointInput & { id: string }
@@ -11,6 +22,16 @@ export class Store {
   bendCurve: CurveType = 'exponential'
   /** Wave used by notes placed from here on. Existing points keep their own. */
   waveType: OscillatorType = 'sine'
+  /** Oscillator on the web. Sampler pitch-shifts one loaded clip. */
+  soundMode: SoundMode = 'oscillator'
+  /** Hz the loaded clip plays at a SoundTouch pitch of 1. */
+  sampleBaseHz = DEFAULT_SAMPLE_BASE_HZ
+  sampleName = ''
+  sampleSeconds = 0
+  /** When true, the clip loops so a bend can outlast it. */
+  sampleLoop = false
+  /** Desktop only. Audio plays the sampler; MIDI sends MPE; both do each. */
+  outputRoute: OutputRoute = 'audio'
 
   private listeners = new Set<() => void>()
   /** While greater than 0, {@link emit} waits for the outermost {@link batch}. */
@@ -111,6 +132,96 @@ export class Store {
     if (next === this.waveType) return
     this.waveType = next
     this.emit()
+  }
+
+  setSoundMode(mode: SoundMode): void {
+    if (mode === this.soundMode) return
+    this.soundMode = mode
+    this.emit()
+  }
+
+  setSampleBaseHz(hz: number): void {
+    if (!Number.isFinite(hz)) return
+    const next = clamp(hz, SAMPLE_BASE_MIN, SAMPLE_BASE_MAX)
+    if (next === this.sampleBaseHz) return
+    this.sampleBaseHz = next
+    this.emit()
+  }
+
+  setSample(info: { name: string; seconds: number; loop: boolean }): void {
+    this.sampleName = info.name
+    this.sampleSeconds = info.seconds
+    this.sampleLoop = info.loop
+    this.emit()
+  }
+
+  setSampleLoop(loop: boolean): void {
+    if (loop === this.sampleLoop) return
+    this.sampleLoop = loop
+    this.emit()
+  }
+
+  setOutputRoute(route: OutputRoute): void {
+    if (route === this.outputRoute) return
+    this.outputRoute = route
+    this.emit()
+  }
+
+  /** Notes whose time falls in the bar, including arrivals from other columns. */
+  pointsInColumn(index: number): NotePoint[] {
+    return [...this.points.values()].filter((point) => columnOf(point.x) === index)
+  }
+
+  /**
+   * Snapshot of one bar. Bends that leave the bar become a single start point.
+   * The end of a bend that began in another bar is left out.
+   */
+  copyColumn(index: number): ColumnClip {
+    return clipColumn(this.points.values(), this.bends, index)
+  }
+
+  /** Remove every note in the bar. Bends that touched them go with the notes. */
+  clearColumn(index: number): void {
+    const ids = this.pointsInColumn(index).map((point) => point.id)
+    this.batch(() => {
+      for (const id of ids) this.removePoint(id)
+    })
+  }
+
+  /**
+   * Drop the copied bar onto `index`.
+   * Overwrite clears that bar first. Addition leaves what is already there.
+   */
+  pasteColumn(index: number, clip: ColumnClip, mode: PasteMode): void {
+    const start = columnStart(index)
+    this.batch(() => {
+      if (mode === 'overwrite') {
+        for (const id of this.pointsInColumn(index).map((point) => point.id)) this.removePoint(id)
+      }
+      const ids = clip.points.map((point) => this.addPoint({
+        x: start + point.dx,
+        y: point.y,
+        z: point.z,
+        velocity: point.velocity,
+        waveType: point.waveType,
+      }))
+      for (const bend of clip.bends) {
+        const from = ids[bend.from]
+        const to = ids[bend.to]
+        if (from && to) this.addBend(from, to, bend.curveType)
+      }
+    })
+  }
+
+  /** Move every note onto the nearest quarter-beat. Pitch, intensity, and bends stay. */
+  quantize(): void {
+    this.batch(() => {
+      for (const point of [...this.points.values()]) {
+        const x = quantizeToQuarterBeat(point.x)
+        if (x === point.x) continue
+        this.updatePoint(point.id, { x })
+      }
+    })
   }
 
   clear(): void {

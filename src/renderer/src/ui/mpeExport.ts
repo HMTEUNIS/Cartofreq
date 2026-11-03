@@ -3,7 +3,7 @@ import { exportMpe, type MpeExportInput } from '../export/mpe'
 let openRoot: HTMLElement | null = null
 
 /** Opens the export dialog. The file is built only after Download .mid. */
-export function openMpeExport(read: () => MpeExportInput): void {
+export function openMpeExport(read: () => MpeExportInput, desktop = false): void {
   if (openRoot) {
     openRoot.querySelector<HTMLButtonElement>('[data-download]')?.focus()
     return
@@ -14,13 +14,17 @@ export function openMpeExport(read: () => MpeExportInput): void {
   root.innerHTML = `
     <div class="mpe-dialog" role="dialog" aria-modal="true" aria-labelledby="mpe-export-title">
       <h2 id="mpe-export-title">Export as MPE</h2>
-      <p class="mpe-lead">This exports your sequence as an MPE (MIDI Polyphonic Expression) file. Pitch, glissando, and brightness (Z-axis) are preserved.</p>
+      <p class="mpe-lead">${
+        desktop
+          ? 'This writes the sequence to an MPE file for another instrument. The desktop app can also play a loaded sample, and can send the same performance out the virtual MIDI port.'
+          : 'This exports your sequence as an MPE (MIDI Polyphonic Expression) file. Pitch, glissando, and brightness (Z-axis) are preserved.'
+      }</p>
       <ul>
         <li>Pitch: Microtonal offsets are carried via per-note pitch bend.</li>
         <li>Glissando: Bend connections become pitch bend automation curves.</li>
         <li>Brightness: Z-axis maps to CC74 (timbre).</li>
         <li>Velocity is the note-on velocity. Changes along a bend are carried on CC11 (expression).</li>
-        <li>Wave type is not exported. The receiving instrument determines the sound.</li>
+        ${desktop ? '' : '<li>Wave type is not exported. The receiving instrument determines the sound.</li>'}
       </ul>
       <p class="mpe-requirement">Requirement: You must use an MPE-compatible instrument. Set its member-channel pitch bend range to ±48 semitones (the MPE default). Without this, microtonal pitches will be incorrect.</p>
       <p>Bends longer than ±48 semitones saturate. The file is one track per member channel (format 1).</p>

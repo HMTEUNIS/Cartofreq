@@ -98,6 +98,17 @@ export function formatHz(freq: number): string {
   return `${freq.toFixed(2)} Hz`
 }
 
+/**
+ * Snap normalized time to the nearest quarter-beat.
+ * The loop point (the far end of the 16 beats) lands on the downbeat.
+ */
+export function quantizeToQuarterBeat(x: number): number {
+  const steps = TOTAL_BEATS * 4
+  let index = Math.round(clamp(x, 0, 1) * steps)
+  if (index >= steps) index = 0
+  return index / steps
+}
+
 /** `norm` is 0–1 across 4 bars of 4/4. */
 export function describeTime(norm: number): string {
   const beats = clamp(norm, 0, 0.999999) * TOTAL_BEATS

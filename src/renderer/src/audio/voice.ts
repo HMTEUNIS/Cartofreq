@@ -1,23 +1,23 @@
-export const CUTOFF_MIN = 200
-export const CUTOFF_MAX = 8000
+export { CUTOFF_MAX, CUTOFF_MIN, zToCutoff, zToGain, zToQ } from './brightness'
+import { CUTOFF_MIN, zToQ } from './brightness'
+import type { CurveType } from '../model/types'
 
-/** Log-spaced lowpass cutoff. z = 0 is 200 Hz, z = 1 is 8 kHz. */
-export function zToCutoff(z: number): number {
-  return CUTOFF_MIN * (CUTOFF_MAX / CUTOFF_MIN) ** z
-}
-
-/** Mild resonance lift. 0.5 at z = 0, 3 at z = 1. */
-export function zToQ(z: number): number {
-  return 0.5 + z * 2.5
-}
-
-/** Mild level lift. 0.4 at z = 0, 1 at z = 1. */
-export function zToGain(z: number): number {
-  return 0.4 + z * 0.6
+export interface VoiceSource {
+  setPitch(hz: number, time: number): void
+  rampPitch(fromHz: number, toHz: number, start: number, end: number, curve: CurveType): void
+  currentHz(): number
+  cancel(time: number): void
+  start(time: number): void
+  stop(time: number): void
+  /** Push the clip's end later. A slide calls this again instead of restarting. */
+  aimEnd?(time: number): void
+  connect(destination: AudioNode): void
+  dispose(): void
+  setWave?(type: OscillatorType): void
 }
 
 export interface Voice {
-  osc: OscillatorNode
+  source: VoiceSource
   filter: BiquadFilterNode
   gain: GainNode
   panner: StereoPannerNode
@@ -25,18 +25,25 @@ export interface Voice {
   releaseTime: number
   /** Held by the live keyboard gesture so lookahead notes cannot steal it. */
   pinned: boolean
+  /** Bumped when the voice is reused, so a slide cannot keep a stolen voice. */
+  generation: number
 }
 
 /**
- * Fixed pool of always-running oscillators. Gain stays at 0 until a note
- * opens it, so idle voices are silent. Graph per voice:
- * osc → lowpass → gain → panner → masterGain.
+ * Fixed pool. Gain stays at 0 until a note opens it, so idle voices are silent.
+ * Graph per voice: source → lowpass → gain → panner → masterGain.
+ * Oscillator sources keep running. Sampler sources start a buffer on each note.
  */
 export class VoicePool {
   readonly masterGain: GainNode
   readonly voices: Voice[]
 
-  constructor(context: AudioContext, size = 16) {
+  constructor(
+    context: AudioContext,
+    size: number,
+    private readonly createSource: () => VoiceSource,
+    private readonly warmStart: boolean,
+  ) {
     this.masterGain = context.createGain()
     this.masterGain.gain.value = 0.8
     const count = Math.max(1, Math.floor(size))
@@ -58,6 +65,7 @@ export class VoicePool {
       ?? this.earliestRelease(source)
     voice.busy = true
     voice.releaseTime = Number.POSITIVE_INFINITY
+    voice.generation += 1
     return voice
   }
 
@@ -65,10 +73,11 @@ export class VoicePool {
     voice.releaseTime = releaseTime
   }
 
-  /** Drop scheduled automation and close every gate. Oscillators keep running. */
+  /** Drop scheduled automation and close every gate. */
   silence(now: number): void {
     for (const voice of this.voices) {
-      voice.osc.frequency.cancelScheduledValues(now)
+      voice.source.cancel(now)
+      voice.source.stop(now)
       voice.filter.frequency.cancelScheduledValues(now)
       voice.filter.Q.cancelScheduledValues(now)
       voice.gain.gain.cancelScheduledValues(now)
@@ -77,6 +86,17 @@ export class VoicePool {
       voice.pinned = false
       voice.releaseTime = now
     }
+  }
+
+  dispose(now: number): void {
+    this.silence(now)
+    for (const voice of this.voices) {
+      voice.source.dispose()
+      voice.filter.disconnect()
+      voice.gain.disconnect()
+      voice.panner.disconnect()
+    }
+    this.masterGain.disconnect()
   }
 
   private earliestRelease(source: Voice[]): Voice {
@@ -88,7 +108,7 @@ export class VoicePool {
   }
 
   private createVoice(context: AudioContext): Voice {
-    const osc = context.createOscillator()
+    const source = this.createSource()
     const filter = context.createBiquadFilter()
     filter.type = 'lowpass'
     filter.frequency.value = CUTOFF_MIN
@@ -98,20 +118,97 @@ export class VoicePool {
     const panner = context.createStereoPanner()
     panner.pan.value = 0
 
-    osc.connect(filter)
+    source.connect(filter)
     filter.connect(gain)
     gain.connect(panner)
     panner.connect(this.masterGain)
-    osc.start()
+    if (this.warmStart) source.start(context.currentTime)
 
     return {
-      osc,
+      source,
       filter,
       gain,
       panner,
       busy: false,
       releaseTime: 0,
       pinned: false,
+      generation: 0,
+    }
+  }
+}
+
+/** Shared AudioParam glide. Exponential targets stay above 0. */
+export function rampParam(
+  param: AudioParam,
+  from: number,
+  to: number,
+  start: number,
+  end: number,
+  curve: CurveType,
+): void {
+  param.setValueAtTime(from, start)
+  if (end <= start) return
+  const span = Math.max(Math.abs(from), Math.abs(to), 1e-3)
+  if (Math.abs(from - to) / span < 1e-4) return
+  if (curve === 'exponential' && from > 0 && to > 0) {
+    param.exponentialRampToValueAtTime(to, end)
+    return
+  }
+  param.linearRampToValueAtTime(to, end)
+}
+
+/** Always-running oscillator. `stop` leaves it running; gain closes the note. */
+export class OscillatorSource implements VoiceSource {
+  private readonly osc: OscillatorNode
+  private started = false
+
+  constructor(context: AudioContext) {
+    this.osc = context.createOscillator()
+  }
+
+  setWave(type: OscillatorType): void {
+    const next = type === 'custom' ? 'sine' : type
+    if (this.osc.type !== next) this.osc.type = next
+  }
+
+  setPitch(hz: number, time: number): void {
+    this.osc.frequency.setValueAtTime(Math.max(hz, 0.001), time)
+  }
+
+  rampPitch(fromHz: number, toHz: number, start: number, end: number, curve: CurveType): void {
+    rampParam(this.osc.frequency, Math.max(fromHz, 0.001), Math.max(toHz, 0.001), start, end, curve)
+  }
+
+  currentHz(): number {
+    return this.osc.frequency.value
+  }
+
+  cancel(time: number): void {
+    this.osc.frequency.cancelScheduledValues(time)
+  }
+
+  start(time: number): void {
+    if (this.started) return
+    this.started = true
+    this.osc.start(time)
+  }
+
+  stop(_time: number): void {}
+
+  connect(destination: AudioNode): void {
+    this.osc.connect(destination)
+  }
+
+  dispose(): void {
+    try {
+      if (this.started) this.osc.stop()
+    } catch {
+      /* already stopped */
+    }
+    try {
+      this.osc.disconnect()
+    } catch {
+      /* already disconnected */
     }
   }
 }

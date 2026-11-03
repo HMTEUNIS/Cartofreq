@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { Line2 } from 'three/addons/lines/Line2.js'
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js'
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
+import { COLUMN_COUNT, columnCenterNorm } from './model/column'
 import type { Store } from './model/store'
 import {
   BARS,
@@ -71,8 +72,11 @@ export interface SequencerView {
   readonly camera: THREE.PerspectiveCamera
   readonly controls: OrbitControls
   readonly pointsGroup: THREE.Group
+  readonly columnsGroup: THREE.Group
   readonly plane: THREE.Mesh
   sync(store: Store): void
+  setColumn(index: number | null): void
+  pickColumn(object: THREE.Object3D): number | null
   setPlayhead(norm: number): void
   setHighlights(levels: Map<string, number>): void
   setSelected(id: string | null): void
@@ -147,7 +151,40 @@ export function createScene(root: HTMLElement): SequencerView {
   const pointsGroup = new THREE.Group()
   const bendsGroup = new THREE.Group()
   const previewGroup = new THREE.Group()
-  scene.add(bendsGroup, pointsGroup, previewGroup)
+  const columnsGroup = new THREE.Group()
+  columnsGroup.name = 'columns'
+  scene.add(bendsGroup, pointsGroup, previewGroup, columnsGroup)
+
+  const columnGeo = new THREE.SphereGeometry(0.26, 20, 14)
+  const columnMeshes: THREE.Mesh[] = []
+  for (let index = 0; index < COLUMN_COUNT; index++) {
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x8d8474,
+      emissive: 0x2a2418,
+      roughness: 0.45,
+      metalness: 0.05,
+    })
+    const mesh = new THREE.Mesh(columnGeo, material)
+    mesh.position.set(columnCenterNorm(index) * WORLD_X, WORLD_Y + 0.48, PLANE_Z)
+    mesh.userData.columnIndex = index
+    columnsGroup.add(mesh)
+    columnMeshes.push(mesh)
+  }
+
+  const columnHighlight = new THREE.Mesh(
+    new THREE.PlaneGeometry(WORLD_X / COLUMN_COUNT, WORLD_Y),
+    new THREE.MeshBasicMaterial({
+      color: 0xe3a45a,
+      transparent: true,
+      opacity: 0.2,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  )
+  columnHighlight.visible = false
+  columnHighlight.raycast = () => {}
+  columnHighlight.renderOrder = 1
+  scene.add(columnHighlight)
 
   const playhead = buildPlayhead()
   scene.add(playhead)
@@ -269,22 +306,52 @@ export function createScene(root: HTMLElement): SequencerView {
     camera,
     controls,
     pointsGroup,
+    columnsGroup,
     plane,
+
+    setColumn(index) {
+      for (let i = 0; i < columnMeshes.length; i++) {
+        const mesh = columnMeshes[i]
+        if (!mesh) continue
+        const on = i === index
+        const material = mesh.material as THREE.MeshStandardMaterial
+        material.color.setHex(on ? 0xf0d3a4 : 0x8d8474)
+        material.emissive.setHex(on ? 0x8a6230 : 0x2a2418)
+        mesh.scale.setScalar(on ? 1.45 : 1)
+      }
+      if (index == null) {
+        columnHighlight.visible = false
+        return
+      }
+      columnHighlight.visible = true
+      columnHighlight.position.set(columnCenterNorm(index) * WORLD_X, WORLD_Y / 2, PLANE_Z + 0.06)
+    },
+
+    pickColumn(object) {
+      let current: THREE.Object3D | null = object
+      while (current) {
+        const index = current.userData.columnIndex
+        if (typeof index === 'number') return index
+        current = current.parent
+      }
+      return null
+    },
 
     sync(store) {
       const seen = new Set<string>()
       for (const point of store.points.values()) {
         seen.add(point.id)
         let mesh = pointMeshes.get(point.id)
+        const sampler = store.soundMode === 'sampler'
         if (!mesh) {
-          mesh = createPointMesh(point)
+          mesh = createPointMesh(point, sampler)
           pointMeshes.set(point.id, mesh)
           pointsGroup.add(mesh)
         }
         const world = worldFromNote(point)
         mesh.position.set(world.x, world.y, world.z)
         mesh.userData.velScale = pointScaleForVelocity(point.velocity)
-        paintByWave(mesh.material as THREE.MeshStandardMaterial, point.waveType)
+        paintByWave(mesh.material as THREE.MeshStandardMaterial, sampler ? 'sine' : point.waveType)
       }
       for (const [id, mesh] of pointMeshes) {
         if (seen.has(id)) continue
@@ -365,13 +432,13 @@ export function createScene(root: HTMLElement): SequencerView {
   }
 }
 
-function createPointMesh(point: NotePoint): THREE.Mesh {
+function createPointMesh(point: NotePoint, uniform: boolean): THREE.Mesh {
   const material = new THREE.MeshStandardMaterial({
     emissiveIntensity: 0.16,
     roughness: 0.38,
     metalness: 0.08,
   })
-  paintByWave(material, point.waveType)
+  paintByWave(material, uniform ? 'sine' : point.waveType)
   const mesh = new THREE.Mesh(VIS_GEO, material)
   mesh.userData.pointId = point.id
   mesh.userData.velScale = pointScaleForVelocity(point.velocity)

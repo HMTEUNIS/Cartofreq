@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { describeColumn } from '../model/column'
 import type { SequencerView } from '../scene'
 import {
   BEND_WRAP_BREAK,
@@ -10,6 +11,7 @@ import {
   worldFromNote,
 } from '../model/space'
 import type { Store } from '../model/store'
+import type { ColumnEditor } from '../ui/columnEditor'
 import type { NoteEditor } from '../ui/noteEditor'
 import { HOVER_IDLE, type ControlHandles } from '../ui/controls'
 
@@ -17,6 +19,7 @@ interface BindOptions {
   view: SequencerView
   store: Store
   editor: NoteEditor
+  columns: ColumnEditor
   ui: ControlHandles
 }
 
@@ -50,7 +53,7 @@ type Gesture =
     }
 
 export function bindInteraction(options: BindOptions): void {
-  const { view, store, editor, ui } = options
+  const { view, store, editor, columns, ui } = options
   const canvas = view.canvas
   const raycaster = new THREE.Raycaster()
   const ndc = new THREE.Vector2()
@@ -73,6 +76,12 @@ export function bindInteraction(options: BindOptions): void {
   const aim = (clientX: number, clientY: number) => {
     view.clientToNDC(clientX, clientY, ndc)
     raycaster.setFromCamera(ndc, view.camera)
+  }
+
+  const pickColumn = (): number | null => {
+    const hits = raycaster.intersectObjects(view.columnsGroup.children, false)
+    const object = hits[0]?.object
+    return object ? view.pickColumn(object) : null
   }
 
   const pickPoint = (): string | null => {
@@ -209,10 +218,21 @@ export function bindInteraction(options: BindOptions): void {
   }
 
   canvas.addEventListener('pointerdown', (event) => {
-    if (editor.interceptPointer()) return
     if (event.button !== 0 && event.button !== 2) return
     suppressMouse = false
     aim(event.clientX, event.clientY)
+    const column = pickColumn()
+    const swallow = editor.interceptPointer() || columns.interceptPointer()
+    if (column != null && event.button === 0) {
+      suppressMouse = true
+      event.preventDefault()
+      event.stopPropagation()
+      editor.close()
+      columns.open(column, event.clientX, event.clientY)
+      canvas.style.cursor = 'pointer'
+      return
+    }
+    if (swallow) return
     const pointId = pickPoint()
 
     if (pointId && (event.button === 0 || event.button === 2)) {
@@ -311,6 +331,13 @@ export function bindInteraction(options: BindOptions): void {
     if (event.buttons !== 0 || gesture) return
     if (event.target !== canvas) return
     aim(event.clientX, event.clientY)
+    const column = pickColumn()
+    if (column != null) {
+      view.setHover(null)
+      canvas.style.cursor = 'pointer'
+      ui.setHover(describeColumn(column))
+      return
+    }
     const pointId = pickPoint()
     view.setHover(pointId)
     canvas.style.cursor = pointId ? 'grab' : 'crosshair'
@@ -361,8 +388,10 @@ export function bindInteraction(options: BindOptions): void {
 
   canvas.addEventListener('dblclick', (event) => {
     aim(event.clientX, event.clientY)
+    if (pickColumn() != null) return
     const pointId = pickPoint()
     if (pointId) {
+      columns.close()
       select(pointId)
       editor.open(pointId, event.clientX, event.clientY)
       return

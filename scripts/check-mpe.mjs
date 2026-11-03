@@ -24,8 +24,8 @@ await esbuild.build({
         xToTicks,
         TICKS_PER_QUARTER,
         MPE_MEMBER_BEND_RANGE_SEMITONES,
-      } from './src/export/mpe.ts'
-      export { Store } from './src/model/store.ts'
+      } from './src/renderer/src/export/mpe.ts'
+      export { Store } from './src/renderer/src/model/store.ts'
     `,
     resolveDir: root,
     sourcefile: 'mpe-check-entry.ts',

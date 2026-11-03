@@ -1,9 +1,16 @@
 import MidiWriter from 'midi-writer-js'
+import {
+  glideScalar,
+  hzToMidiFloat,
+  hzToNoteAndOffset,
+  offsetToBend,
+  zToCC74,
+} from '../audio/mpe-math'
 import { clamp, forwardDelta, totalDuration } from '../model/space'
 import { DEFAULT_VELOCITY, type BendConnection, type CurveType, type NotePoint } from '../model/types'
 
-/** Member-channel pitch bend range. ±48 semitones is the MPE default. */
-export const MPE_MEMBER_BEND_RANGE_SEMITONES = 48
+export { MPE_MEMBER_BEND_RANGE_SEMITONES } from '../audio/mpe-math'
+export { hzToMidiFloat, hzToNoteAndOffset, offsetToBend, zToCC74 }
 
 export const TICKS_PER_QUARTER = 480
 
@@ -49,28 +56,6 @@ export interface MpeExportInput {
   bpm: number
   points: ReadonlyMap<string, NotePoint>
   bends: readonly BendConnection[]
-}
-
-export function hzToMidiFloat(hz: number): number {
-  const safe = hz > 0 ? hz : 1e-6
-  return 69 + 12 * Math.log2(safe / 440)
-}
-
-/** Nearest MIDI note, plus the semitone offset at the attack (−0.5..+0.5 when in range). */
-export function hzToNoteAndOffset(hz: number): { note: number; offsetSemitones: number } {
-  const midiFloat = hzToMidiFloat(hz)
-  const rounded = Math.round(midiFloat)
-  const note = clamp(rounded, 0, 127)
-  return { note, offsetSemitones: midiFloat - note }
-}
-
-/** PitchBendEvent bend is −1..1 across the ±48 semitone member range. */
-export function offsetToBend(offsetSemitones: number): number {
-  return clamp(offsetSemitones / MPE_MEMBER_BEND_RANGE_SEMITONES, -1, 1)
-}
-
-export function zToCC74(z: number): number {
-  return Math.round(clamp(z, 0, 1) * 127)
 }
 
 /**
@@ -304,13 +289,6 @@ function amount(note: ExportNote, tick: number): number {
   const span = note.endTick - note.startTick
   if (span <= 0) return 0
   return clamp((tick - note.startTick) / span, 0, 1)
-}
-
-/** Exponential in the value itself when both ends are positive; otherwise linear. */
-function glideScalar(from: number, to: number, t: number, curve: CurveType): number {
-  const u = clamp(t, 0, 1)
-  if (curve === 'exponential' && from > 0 && to > 0) return from * (to / from) ** u
-  return from + (to - from) * u
 }
 
 function sampleTicks(start: number, end: number, intervals: number): number[] {
