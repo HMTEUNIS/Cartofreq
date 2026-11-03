@@ -1,6 +1,8 @@
 # Cartofreq
 
-![cartofreq](build/cartofreq.png)
+<p align="center">
+  <img src="build/cartofreq.png" alt="cartofreq">
+</p>
 
 Cartofreq is a microtonal sequencer in a three-dimensional space. Time runs left to right, pitch runs bottom to top, and brightness runs front to back. A phrase is four bars of 4/4, and it loops. Pitch is free between A1 (55 Hz) and A6 (1760 Hz). The readout names the nearest twelve-tone pitch, the cents offset, the bar, the beat, and the brightness.
 
