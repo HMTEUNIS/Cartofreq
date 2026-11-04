@@ -2,6 +2,8 @@
   "name": "cartofreq",
   "private": true,
   "version": "0.1.0",
+  "description": "Microtonal 3D sequencer",
+  "author": "Cartofreq",
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
@@ -53,7 +55,25 @@
       "target": "nsis"
     },
     "linux": {
-      "target": "AppImage"
+      "target": ["deb", "AppImage"],
+      "category": "AudioVideo",
+      "synopsis": "Microtonal 3D sequencer",
+      "maintainer": "Cartofreq <dev@cartofreq.local>"
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0 | libgtk-3-0t64",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0 | libatspi2.0-0t64",
+        "libuuid1",
+        "libsecret-1-0",
+        "libasound2 | libasound2t64",
+        "pulseaudio-utils"
+      ]
     },
     "afterPack": "scripts/linux-no-sandbox.cjs"
   }

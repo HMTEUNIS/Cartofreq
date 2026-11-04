@@ -11,6 +11,8 @@ There are two ways to use it:
 - **The web demo** runs in a browser. It sounds with an oscillator or a loaded sample, and you can record what you hear. It's the fastest way to see what Cartofreq does, and to decide if it's something you want to use.
 - **The desktop app** is the instrument. It plays your sample, sends the performance as MPE to any MPE-capable instrument, and routes its audio into a DAW. This is the version to use if you want to make something with it.
 
+The desktop app is installed from the [Cartofreq 0.1.0 release](https://github.com/HMTEUNIS/Cartofreq/releases/tag/v0.1.0). Linux, including Ubuntu Studio, uses [cartofreq.deb](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq.deb). Windows uses [cartofreq.exe](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq.exe). A Mac uses [cartofreq-arm64.zip](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq-arm64.zip) on Apple silicon, or [cartofreq-x64.zip](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq-x64.zip) on Intel. The steps are in [Install](#install). That computer does not need Node, npm, or a terminal.
+
 ---
 
 ## Try the web demo
@@ -156,7 +158,93 @@ On the web demo, Record captures what the browser is playing. The desktop app do
 
 ---
 
-## Run
+## Install
+
+Installing Cartofreq is a download and a double-click. The computer you make music on does not need Node, npm, git, or a terminal. Those tools are only for changing the program. The [source page](https://github.com/HMTEUNIS/Cartofreq) and the green **Code** button are that project. Opening that download and running a command will stop at “npm: command not found,” because the source is not the app.
+
+The app is a finished installer, published separately:
+
+- Release page: [Cartofreq 0.1.0](https://github.com/HMTEUNIS/Cartofreq/releases/tag/v0.1.0)
+- All releases: [github.com/HMTEUNIS/Cartofreq/releases](https://github.com/HMTEUNIS/Cartofreq/releases)
+- Linux: [cartofreq.deb](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq.deb) (about 91 MB)
+- Windows: [cartofreq.exe](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq.exe) (about 115 MB)
+- Mac, Apple silicon: [cartofreq-arm64.zip](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq-arm64.zip) (about 119 MB)
+- Mac, Intel: [cartofreq-x64.zip](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq-x64.zip) (about 122 MB)
+
+### Linux, including Ubuntu Studio
+
+Ubuntu Studio is a normal Ubuntu system with a studio desktop. The installer is the same `.deb` file. Discover is the software center that installs it. On other Ubuntu desktops that window may be called Software Install or App Center. Cartofreq does not ship a separate setup program.
+
+1. On the studio computer, open the [release page](https://github.com/HMTEUNIS/Cartofreq/releases/tag/v0.1.0) in a browser. Firefox is fine. You do not sign in.
+2. Under **Assets**, download **cartofreq.deb**. The direct link is [cartofreq.deb](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq.deb). Leave the file named `cartofreq.deb`. It is about 91 MB. The browser puts it in Downloads.
+3. Open the file manager and go to Downloads. Double-click `cartofreq.deb`.
+4. Discover opens and shows Cartofreq, described as a microtonal 3D sequencer. Press **Install**.
+5. Ubuntu asks for your login password. That prompt is the system installer, not a Cartofreq window. The password lets it copy the program into place and install `pulseaudio-utils`, the small tool Cartofreq uses to create its DAW audio devices. One approval covers both.
+6. When the button changes to installed, close Discover. Open the application menu, search for **Cartofreq**, and start it. It is filed under Audio. The icon is the picture at the top of this page.
+
+If a double-click opens the file as a list of folders, like a zip archive, the file manager picked an archive tool instead of the installer. Right-click `cartofreq.deb`, choose **Open With**, and pick **Discover**. If Discover is not in that list, open Discover yourself, and use its control for installing a downloaded package. The file to give it is the `.deb` in Downloads.
+
+After it is installed you can delete `cartofreq.deb` from Downloads. The program stays in the application menu.
+
+**What you should see the first time.** The window title is Cartofreq. The desktop app does not play the web demo’s oscillator. It stays quiet until you load a sample, set the base frequency to the pitch of that recording, and press Play. Output mode **Audio Out** plays through the computer’s speakers. **MIDI Out** sends MPE and keeps the sampler quiet. **Both** does the two together.
+
+**Into a DAW on this Linux machine.** While Cartofreq is open it creates two audio devices, `CartofreqOut` and `CartofreqIn`, and leaves the system’s normal output alone. In the system sound settings, set Cartofreq’s playback device to `CartofreqOut`. In the DAW, choose `CartofreqIn` as the input, arm a track, and turn monitoring on. The desktop volume slider is the level going into that cable. The DAW fader is the level after it. Those two devices are removed when Cartofreq quits. The fuller routing notes are in [Into a DAW](#into-a-daw).
+
+**MIDI on Linux.** While the app is open, the ports **Cartofreq MPE** and **Cartofreq MIDI In** appear on their own. Point the instrument at Cartofreq MPE, and set that instrument’s MPE bend range to ±48 semitones. A USB keyboard can be plugged in before launch, or connected afterward with Rescan MIDI.
+
+**Removing it.** Open Discover, find Cartofreq under installed software, and press Remove. Ubuntu asks for the password again. That removes the program. It does not remove samples or projects you saved elsewhere.
+
+**A newer version.** Download the new `.deb` from the [releases page](https://github.com/HMTEUNIS/Cartofreq/releases) and install it the same way. The installer replaces the copy that is already there.
+
+### macOS
+
+The Mac download is a zip of the app. Pick the one that matches the machine. Open the Apple menu and choose About This Mac. If the chip line says Apple, download [cartofreq-arm64.zip](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq-arm64.zip). If it says Intel, download [cartofreq-x64.zip](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq-x64.zip). Leave the filename as it is. The browser puts it in Downloads.
+
+1. Open the [release page](https://github.com/HMTEUNIS/Cartofreq/releases/tag/v0.1.0). You do not sign in.
+2. Under **Assets**, download the zip for this Mac.
+3. Double-click the zip. Finder expands it to `cartofreq.app`.
+4. Drag `cartofreq.app` into Applications. You can then delete the zip and the copy that is still sitting in Downloads.
+
+The build is not signed with an Apple certificate, so the first open needs one extra approval. In Applications, right-click **Cartofreq** and choose **Open**, then **Open** again in the dialog. After that, a normal double-click is enough. If macOS only offers Move to Trash, open System Settings → Privacy & Security and press **Open Anyway** next to the Cartofreq message.
+
+**What you should see the first time.** The window title is Cartofreq. The app stays quiet until you load a sample, set the base frequency to the pitch of that recording, and press Play. Output mode **Audio Out** plays through the Mac’s speakers. **MIDI Out** sends MPE and keeps the sampler quiet. **Both** does the two together.
+
+**Into a DAW.** Install [BlackHole 2ch](https://existential.audio/blackhole/), then follow [Into a DAW](#into-a-daw). While Cartofreq is open, the ports **Cartofreq MPE** and **Cartofreq MIDI In** appear on their own. Point the instrument at Cartofreq MPE, and set that instrument’s MPE bend range to ±48 semitones.
+
+**Removing it.** Drag Cartofreq out of Applications and into the Trash.
+
+**A newer version.** Download the new zip from the [releases page](https://github.com/HMTEUNIS/Cartofreq/releases) and drag the new `cartofreq.app` onto Applications. Replace the copy that is already there.
+
+### Windows
+
+The Windows download is [cartofreq.exe](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq.exe), about 115 MB. It installs Cartofreq for the current user and adds it to the Start menu and the desktop.
+
+1. On the Windows computer, open the [release page](https://github.com/HMTEUNIS/Cartofreq/releases/tag/v0.1.0) in a browser. You do not sign in.
+2. Under **Assets**, download **cartofreq.exe**. Leave the file named `cartofreq.exe`. The browser puts it in Downloads.
+3. Double-click `cartofreq.exe`. Windows may show a blue SmartScreen window that says it protected your PC, because the installer is not signed with a Microsoft certificate. Press **More info**, then **Run anyway**.
+4. The installer runs on its own and finishes in the Start menu. Close it when it is done. Open the Start menu, search for **Cartofreq**, and start it. There is also a Cartofreq shortcut on the desktop.
+
+**What you should see the first time.** The window title is Cartofreq. The app stays quiet until you load a sample, set the base frequency to the pitch of that recording, and press Play. Output mode **Audio Out** plays through the computer’s speakers. **MIDI Out** sends MPE and keeps the sampler quiet. **Both** does the two together.
+
+**Into a DAW.** Windows does not create the virtual audio or MIDI devices by itself. Audio into a DAW uses [VB-CABLE](https://vb-audio.com/Cable/). A virtual MIDI port uses [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html), left running in the system tray. Both are described in [Into a DAW](#into-a-daw). Point the instrument at Cartofreq MPE, and set that instrument’s MPE bend range to ±48 semitones.
+
+**Removing it.** Open Settings → Apps → Installed apps, find Cartofreq, and choose Uninstall. That removes the program. It does not remove samples you saved elsewhere.
+
+**A newer version.** Download the new `cartofreq.exe` from the [releases page](https://github.com/HMTEUNIS/Cartofreq/releases) and run it. The installer replaces the copy that is already there.
+
+**On a Linux computer with Wine.** The same file is the one to open. Download [cartofreq.exe](https://github.com/HMTEUNIS/Cartofreq/releases/download/v0.1.0/cartofreq.exe), then open it with Wine. A double-click works when `.exe` files are set to open with Wine. Otherwise, in the folder that contains the download:
+
+```
+wine cartofreq.exe
+```
+
+The installer puts Cartofreq in Wine’s Start menu and on the desktop. Start it from there after the installer finishes. Audio and MIDI then follow the Windows notes above, through whatever sound and MIDI Wine is using on that machine.
+
+## Development
+
+This is only for working on Cartofreq itself. People using the app do not do this, and they do not download this folder.
+
+The `release/` directory is produced on a development machine and is not part of the git checkout. Cloning the repository will not create the installers. The published copies are the assets on the [release page](https://github.com/HMTEUNIS/Cartofreq/releases/tag/v0.1.0): `cartofreq.deb`, `cartofreq.exe`, `cartofreq-arm64.zip`, and `cartofreq-x64.zip`.
 
 Node.js and npm.
 
@@ -178,36 +266,12 @@ That command passes `--no-sandbox`. Electron's setuid sandbox helper is not usab
 Packaged installers:
 
 ```
-npm run dist:linux   # AppImage
-npm run dist:mac     # dmg
-npm run dist:win     # nsis
+npm run dist:linux   # deb and AppImage
+npm run dist:mac     # Mac app
+npm run dist:win     # Windows installer
 ```
 
-They are written to `release/`. Each one is named `cartofreq`: `cartofreq.AppImage`, `cartofreq.dmg`, and `cartofreq.exe`. The installed program is `cartofreq` as well. The window title is Cartofreq. The picture at the top of this file is the app icon.
-
-**Linux.** The file to open is `release/cartofreq.AppImage`.
-
-A double-click of a build from before this fix exits immediately. Electron finds `chrome-sandbox` inside the package, that helper is not setuid root, and the process aborts before a window exists. The file manager does not show the error. Current packages start with `--no-sandbox`, so opening the AppImage or `release/linux-unpacked/cartofreq` reaches the window.
-
-The AppImage also needs FUSE 2 (`libfuse.so.2`). Ubuntu 24.04 ships FUSE 3 without it. Without the library the file exits the same way, before a window. On Ubuntu 24.04 and later:
-
-```
-sudo apt install libfuse2t64
-```
-
-On Ubuntu 22.04 the package is `libfuse2`.
-
-`npm run dist:linux` also writes an unpacked app that does not need FUSE:
-
-```
-./release/linux-unpacked/cartofreq
-```
-
-If you only have an AppImage and cannot install FUSE, this starts that file. The filename includes the version.
-
-```
-APPIMAGE_EXTRACT_AND_RUN=1 ./release/cartofreq.AppImage
-```
+They are written to `release/`. Linux writes `cartofreq.deb` and `cartofreq.AppImage`. The deb is what you give someone on Ubuntu. The AppImage is a single file that runs without installing, and it needs FUSE 2 (`libfuse2t64` on Ubuntu 24.04, `libfuse2` on 22.04). Windows writes `cartofreq.exe`. A Mac build writes a zip of `cartofreq.app`, `cartofreq-arm64.zip` or `cartofreq-x64.zip`. The installed program is named `cartofreq`.
 
 ---
 
@@ -218,6 +282,6 @@ APPIMAGE_EXTRACT_AND_RUN=1 ./release/cartofreq.AppImage
 - One sample is loaded at a time.
 - A bend that runs past a clip, with Loop sample off, ends when the clip ends.
 - The sampler keeps 8 voices. The oscillator keeps 16. Each sampler voice is an AudioWorklet.
-- Linux DAW routing needs `pactl`, from the `pulseaudio-utils` package, and PipeWire or PulseAudio running. Without `pactl` the speakers still play, and CartofreqOut and CartofreqIn are not created.
+- Linux DAW routing needs `pactl` and PipeWire or PulseAudio. The `.deb` installer installs `pactl`. Without it the speakers still play, and CartofreqOut and CartofreqIn are not created.
 - The macOS and Windows virtual-audio drivers are not bundled.
 - Windows virtual MIDI needs loopMIDI.
